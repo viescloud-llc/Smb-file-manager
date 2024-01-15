@@ -1,0 +1,11 @@
+server:
+  port: 8081
+
+spring.cloud.vault:
+    host: 10.24.24.2
+    port: 8200
+    scheme: http
+    uri: http://10.24.24.2:8200
+    connection-timeout: 5000
+    read-timeout: 15000
+spring.config.import: vault://v_eco/smb-file-manager/test

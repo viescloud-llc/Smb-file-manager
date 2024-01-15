@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smb-file-manager-dev-service
+  labels:
+    app: smb-file-manager-dev
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.24.24.113
+  externalIPs:
+  - 10.24.24.113
+  ports:
+  - name: http
+    port: 83 #local out port
+    protocol: TCP
+    targetPort: 83 # container port
+  selector:
+    app: smb-file-manager-dev #find all pod with app name
+  sessionAffinity: None

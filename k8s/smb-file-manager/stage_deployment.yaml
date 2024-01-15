@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smb-file-manager-stage-deployment
+  namespace: smb-file-manager-stage
+  labels:
+    app: smb-file-manager-stage
+spec:
+  selector:
+    matchLabels:
+      app: smb-file-manager-stage
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: smb-file-manager-stage
+    spec:
+      containers:
+      - name: smb-file-manager-stage
+        image: vincentbuiwork/smb-file-manager:stage
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: 500M
+          limits:
+            memory: 1.5Gi
+        livenessProbe:
+          tcpSocket:
+            port: 82
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_status/healthz
+            port: 82
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+          periodSeconds: 10
+        ports:
+        - containerPort: 82
+      restartPolicy: Always
