@@ -6,6 +6,8 @@ import java.util.List;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -49,6 +51,7 @@ public class FileMetaData implements Serializable {
     @Column
     private boolean publicity = false;
 
+    @JsonIgnore
     private byte[] data;
 
     public static FileMetaData fromMultipartFile(MultipartFile file, int userId, byte[] data) {
