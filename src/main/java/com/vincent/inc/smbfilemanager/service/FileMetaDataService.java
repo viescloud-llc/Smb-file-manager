@@ -25,14 +25,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileMetaDataService extends ViesService<FileMetaData, Integer, FileMetaDataDao> {
 
-    private final SmbSessionFactory smbSessionFactory;
-
     private final SmbSession smbSession;
 
     public FileMetaDataService(DatabaseUtils<FileMetaData, Integer> databaseUtils, FileMetaDataDao repositoryDao,
             SmbSessionFactory smbSessionFactory) {
         super(databaseUtils, repositoryDao);
-        this.smbSessionFactory = smbSessionFactory;
         this.smbSession = smbSessionFactory.getSession();
     }
 
@@ -82,13 +79,22 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     public FileMetaData getByPath(String path, int userId) {
+        return getMetadataWithTry(path, userId, 0);
+    }
+
+    private FileMetaData getMetadataWithTry(String path, int userId, int numTry) {
+        if (numTry >= 20)
+            return (FileMetaData) HttpResponseThrowers
+                    .throwServerError("Server experience unknown error when get by criteria");
+
         var metadata = this.getByPath(path);
 
         if (!ObjectUtils.isEmpty(metadata)) {
             this.checkIsFileBelongToUser(metadata, userId);
             return metadata;
         } else if (this.isFileExist(path)) {
-            return getByPath(path, userId);
+            numTry++;
+            return getMetadataWithTry(path, userId, numTry);
         } else
             return null;
     }
