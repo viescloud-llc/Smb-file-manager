@@ -139,7 +139,7 @@
 		<dependency>
 			<groupId>com.vincent.inc</groupId>
 			<artifactId>vies-spring-utils</artifactId>
-			<version>1.7.5</version>
+			<version>1.7.6</version>
 		</dependency>
 	</dependencies>
 	<dependencyManagement>

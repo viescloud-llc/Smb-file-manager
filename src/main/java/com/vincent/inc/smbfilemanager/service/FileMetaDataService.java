@@ -4,7 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
 import org.springframework.integration.smb.session.SmbSession;
@@ -25,6 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileMetaDataService extends ViesService<FileMetaData, Integer, FileMetaDataDao> {
 
+    private static final String REMOVE_FILE_PATH = "/Trash";
+
     private final SmbSession smbSession;
 
     public FileMetaDataService(DatabaseUtils<FileMetaData, Integer> databaseUtils, FileMetaDataDao repositoryDao,
@@ -44,69 +49,101 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         throw new UnsupportedOperationException("method getAll() should not be use");
     }
 
-    public FileMetaData getByPath(String path) {
+    public FileMetaData getFileMetaDataById(int id) {
+        var object = this.databaseUtils.getAndExpire(id);
+        if (ObjectUtils.isEmpty(object)) {
+            HttpResponseThrowers.throwBadRequest(String.format("%s Id not found", this.T_TYPE.getSimpleName()));
+        }
+
+        return object;
+    }
+
+    public FileMetaData getFileMetaDataByPath(String path) {
         var metadatas = this.repositoryDao.findAllByPath(path);
 
         for (var metadata : metadatas) {
             if (metadata.getPath().equals(path))
-                return this.processingAnyGet(metadata);
-        }
-
-        return null;
-    }
-
-    public FileMetaData getByCriteria(String id, String path, String fileName, int UserId) {
-
-        if (!ObjectUtils.isEmpty(id)) {
-            var metadata = this.getById(Integer.parseInt(id));
-            this.checkIsFileBelongToUser(metadata, UserId);
-            return metadata;
-        }
-
-        if (!ObjectUtils.isEmpty(path)) {
-            var metadata = this.getByPath(path, UserId);
-            if (!ObjectUtils.isEmpty(metadata))
-                return metadata;
-        }
-
-        if (!ObjectUtils.isEmpty(fileName)) {
-            var metadata = this.getByFileName(fileName, UserId);
-            if (!ObjectUtils.isEmpty(metadata))
                 return metadata;
         }
 
         return null;
     }
 
-    public FileMetaData getByPath(String path, int userId) {
-        return getMetadataWithTry(path, userId, 0);
-    }
-
-    private FileMetaData getMetadataWithTry(String path, int userId, int numTry) {
+    private FileMetaData getFileMetaDataByPathWithTry(String path, int userId, int numTry) {
         if (numTry >= 20)
             return (FileMetaData) HttpResponseThrowers
                     .throwServerError("Server experience unknown error when get by criteria");
 
-        var metadata = this.getByPath(path);
+        var metadata = this.getFileMetaDataByPath(path);
 
         if (!ObjectUtils.isEmpty(metadata)) {
             this.checkIsFileBelongToUser(metadata, userId);
             return metadata;
         } else if (this.isFileExist(path)) {
             numTry++;
-            return getMetadataWithTry(path, userId, numTry);
+            return getFileMetaDataByPathWithTry(path, userId, numTry);
         } else
             return null;
     }
 
-    public FileMetaData getByFileName(String fileName, int userId) {
-        return this.getByPath(String.format("/%s/%s", userId, fileName), userId);
+    public FileMetaData getFileMetaDataByPath(String path, int userId) {
+        return getFileMetaDataByPathWithTry(path, userId, 0);
     }
 
-    public FileMetaData patchMetaData(FileMetaData originalMetadata, FileMetaData newMetaData) {
+    public FileMetaData getFileMetaDataByName(String fileName, int userId) {
+        return this.getFileMetaDataByPath(String.format("/%s/%s", userId, fileName), userId);
+    }
+
+    public FileMetaData getFileByPath(String path) {
+        var metadata = this.getFileMetaDataByPath(path);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+    }
+
+    public FileMetaData getFileByPath(String path, int userId) {
+        return getFileByPathWithTry(path, userId, 0);
+    }
+
+    private FileMetaData getFileByPathWithTry(String path, int userId, int numTry) {
+        var metadata = this.getFileMetaDataByPathWithTry(path, userId, numTry);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+    }
+
+    public FileMetaData getFileByName(String fileName, int userId) {
+        return this.getFileByPath(String.format("/%s/%s", userId, fileName), userId);
+    }
+
+    public FileMetaData getFileMetaDataByCriteria(String id, String path, String fileName, int userId) {
+
+        if (!ObjectUtils.isEmpty(id)) {
+            var metadata = this.getFileMetaDataById(Integer.parseInt(id));
+            this.checkIsFileBelongToUser(metadata, userId);
+            return metadata;
+        }
+
+        if (!ObjectUtils.isEmpty(path)) {
+            var metadata = this.getFileMetaDataByPath(path, userId);
+            if (!ObjectUtils.isEmpty(metadata))
+                return metadata;
+        }
+
+        if (!ObjectUtils.isEmpty(fileName)) {
+            var metadata = this.getFileMetaDataByName(fileName, userId);
+            if (!ObjectUtils.isEmpty(metadata))
+                return metadata;
+        }
+
+        return null;
+    }
+
+    public FileMetaData getFileByCriteria(String id, String path, String fileName, int userId) {
+        var metadata = this.getFileMetaDataByCriteria(id, path, fileName, userId);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+    }
+
+    public FileMetaData patchFileMetaData(FileMetaData originalMetadata, FileMetaData newMetaData) {
         String newName = newMetaData.getOriginalFilename();
         String originalPath = originalMetadata.getPath();
-        int ownerId = this.getUserIdFromPath(originalMetadata.getPath());
+        int ownerId = this.getOwnerUserIdFromPath(originalMetadata.getPath());
         String newPath = ObjectUtils.isEmpty(newName) ? null : String.format("/%s/%s", ownerId, newName);
         String newType = ObjectUtils.isEmpty(newName) ? null : this.getContentTypeFromPath(newPath);
 
@@ -139,16 +176,39 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
     @Override
     public void delete(Integer id) {
-        var fileMetaData = this.getById(id);
-
+        var fileMetaData = this.getFileMetaDataById(id);
+        var ownerId = this.getOwnerUserIdFromPath(fileMetaData.getPath());
+        var moveFilePath = String.format("%s/%s/%s", REMOVE_FILE_PATH, ownerId, fileMetaData.getOriginalFilename());
+        
         try {
-            this.smbSession.remove(fileMetaData.getPath());
+            this.checkIfFileDirectoryExist(moveFilePath);
+            
+            var toMoveFilePath = moveFilePath;
+            int count = 0;
+            while(this.smbSession.isFile(toMoveFilePath)) {
+                count++;
+                toMoveFilePath = addCountToFilePath(moveFilePath, count);
+            }
+            
+            this.smbSession.rename(fileMetaData.getPath(), toMoveFilePath);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
             HttpResponseThrowers.throwServerError("Server Experience Unexpected error");
         }
 
         super.delete(id);
+    }
+
+    private String addCountToFilePath(String path, int count) {
+        List<String> splits = new ArrayList<>();
+        splits.addAll(Arrays.stream(path.split("\\.")).toList());
+
+        if(splits.size() >= 2) {
+            int index = splits.size() - 2;
+            splits.set(index, String.format("%s (%s)", splits.get(index), count));
+        }
+
+        return splits.stream().collect(Collectors.joining("."));
     }
 
     public boolean isFileExist(String path) {
@@ -160,7 +220,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
                 var data = IOUtils.toByteArray(raw);
                 var contentType = this.getContentTypeFromPath(path);
                 var fileName = this.getFileNameFromPath(path);
-                var userId = this.getUserIdFromPath(path);
+                var userId = this.getOwnerUserIdFromPath(path);
                 long size = data.length;
                 var metadata = FileMetaData.builder().contentType(contentType).originalFilename(fileName).path(path)
                         .size(size).userIds(List.of(userId)).build();
@@ -179,7 +239,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         return splits[splits.length - 1];
     }
 
-    public int getUserIdFromPath(String path) {
+    public int getOwnerUserIdFromPath(String path) {
         var splits = path.split("/");
         return Integer.parseInt(splits[1]);
     }
@@ -202,6 +262,32 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         if (!fileMetaData.isPublicity() && !fileMetaData.getUserIds().stream().anyMatch(e -> e == userId)) {
             HttpResponseThrowers.throwForbidden("User not allow to access this file");
         }
+    }
+
+    public void checkIsFileBelongToUserOwner(FileMetaData fileMetaData, int userId) {
+        var ownerId = this.getOwnerUserIdFromPath(fileMetaData.getPath());
+        if (!fileMetaData.isPublicity() && userId != ownerId) {
+            HttpResponseThrowers.throwForbidden("User not allow to modify this file");
+        }
+    }
+
+    public void checkIfFileDirectoryExist(String path) {
+        path = getDirectoryPathFromFilePath(path);
+        try {
+            if(!this.smbSession.isDirectory(path))
+                this.smbSession.mkdir(path);
+        } catch (IOException e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    public String getDirectoryPathFromFilePath(String filePath) {
+        List<String> splits = Arrays.stream(filePath.split("/")).toList();
+        String lastElement = splits.get(splits.size() - 1);
+        if(lastElement.contains("."))
+            splits = splits.subList(0, splits.size() - 1);
+        
+        return splits.stream().collect(Collectors.joining("/"));
     }
 
     public byte[] getData(FileMetaData fileMetaData) {
@@ -230,7 +316,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
             HttpResponseThrowers.throwServerError("Server experience unexpected error");
         }
 
-        return super.processingAnyGet(object);
+        return object;
     }
 
     @Override
@@ -241,18 +327,19 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         if (this.isFileExist(object.getPath()))
             HttpResponseThrowers.throwBadRequest("File name is already exist");
 
-        return super.preProcessingAnyModification(object);
+        return object;
     }
 
     @Override
     protected FileMetaData processingAnyModification(FileMetaData object) {
         try {
+            this.checkIfFileDirectoryExist(object.getPath());
             this.smbSession.write(object.getData(), object.getPath());
         } catch (IOException e) {
             log.error(e.getMessage(), e);
             HttpResponseThrowers.throwServerError("Server Experience Unexpected error");
         }
 
-        return super.processingAnyModification(object);
+        return object;
     }
 }
