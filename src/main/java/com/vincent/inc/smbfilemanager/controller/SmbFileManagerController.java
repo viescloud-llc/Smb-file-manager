@@ -16,11 +16,9 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
-@RequestMapping("smb")
 public class SmbFileManagerController {
 
     @Autowired
@@ -29,11 +27,14 @@ public class SmbFileManagerController {
     @GetMapping("file")
     @SuppressWarnings("unchecked")
     public ResponseEntity<byte[]> getFileById(
-            @RequestHeader int user_id,
+            @RequestHeader(required = false) String user_id,
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String id) {
-        var metadata = this.fileMetaDataService.getFileByCriteria(id, path, fileName, user_id);
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        int userId = Integer.parseInt(user_id);
+        var metadata = this.fileMetaDataService.getFileByCriteria(id, path, fileName, userId);
         if (!ObjectUtils.isEmpty(metadata))
             return ResponseEntity.ok().header("Content-Type", metadata.getContentType()).body(metadata.getData());
         else
@@ -42,11 +43,14 @@ public class SmbFileManagerController {
 
     @GetMapping("metadata")
     public FileMetaData getMetadata(
-            @RequestHeader int user_id,
+            @RequestHeader(required = false) String user_id,
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String id) {
-        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, user_id);
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        int userId = Integer.parseInt(user_id);
+        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, userId);
         if (!ObjectUtils.isEmpty(metadata))
             return metadata;
         else
@@ -54,20 +58,28 @@ public class SmbFileManagerController {
     }
 
     @PostMapping("file")
-    public FileMetaData uploadFile(@RequestHeader int user_id, @RequestParam("file") MultipartFile file)
+    public FileMetaData uploadFile(
+        @RequestHeader(required = false) String user_id, 
+        @RequestParam("file") MultipartFile file)
             throws IOException {
-        var metadata = FileMetaData.fromMultipartFile(file, user_id, file.getBytes());
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        int userId = Integer.parseInt(user_id);
+        var metadata = FileMetaData.fromMultipartFile(file, userId, file.getBytes());
         return this.fileMetaDataService.create(metadata);
     }
 
     @PatchMapping("metadata")
     public FileMetaData patchMetaData(
-            @RequestHeader int user_id,
+            @RequestHeader(required = false) String user_id,
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String id,
             @RequestBody FileMetaData fileMetaData) {
-        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, user_id);
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        int userId = Integer.parseInt(user_id);
+        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, userId);
         if (ObjectUtils.isEmpty(metadata))
             HttpResponseThrowers.throwBadRequest("No file metadata found");
         return this.fileMetaDataService.patchFileMetaData(metadata, fileMetaData);
@@ -75,14 +87,17 @@ public class SmbFileManagerController {
 
     @DeleteMapping("file")
     public void deleteFile(
-            @RequestHeader int user_id,
+            @RequestHeader(required = false) String user_id,
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String id) {
-        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, user_id);
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        int userId = Integer.parseInt(user_id);
+        var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, userId);
         if (ObjectUtils.isEmpty(metadata))
             HttpResponseThrowers.throwBadRequest("No file metadata found");
-        this.fileMetaDataService.checkIsFileBelongToUserOwner(metadata, user_id);
+        this.fileMetaDataService.checkIsFileBelongToUserOwner(metadata, userId);
         this.fileMetaDataService.delete(metadata.getId());
     }
 }
