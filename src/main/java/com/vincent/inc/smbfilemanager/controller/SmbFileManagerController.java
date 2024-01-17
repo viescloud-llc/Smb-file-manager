@@ -31,9 +31,9 @@ public class SmbFileManagerController {
             @RequestParam(required = false) String path,
             @RequestParam(required = false) String fileName,
             @RequestParam(required = false) String id) {
-        if(ObjectUtils.isEmpty(user_id))
-            HttpResponseThrowers.throwUnauthorized("Unauthorized");
-        int userId = Integer.parseInt(user_id);
+        int userId = 0;
+        if(!ObjectUtils.isEmpty(user_id))
+            userId = Integer.parseInt(user_id);
         var metadata = this.fileMetaDataService.getFileByCriteria(id, path, fileName, userId);
         if (!ObjectUtils.isEmpty(metadata))
             return ResponseEntity.ok().header("Content-Type", metadata.getContentType()).body(metadata.getData());
