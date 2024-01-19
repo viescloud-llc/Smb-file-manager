@@ -7,6 +7,8 @@ import com.vincent.inc.smbfilemanager.model.FileMetaData;
 import com.vincent.inc.smbfilemanager.service.FileMetaDataService;
 import com.vincent.inc.viesspringutils.exception.HttpResponseThrowers;
 import java.io.IOException;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.ObjectUtils;
@@ -39,6 +41,17 @@ public class SmbFileManagerController {
             return ResponseEntity.ok().header("Content-Type", metadata.getContentType()).body(metadata.getData());
         else
             return (ResponseEntity<byte[]>) HttpResponseThrowers.throwNotFound("File not found");
+    }
+
+    @GetMapping("metadata/all")
+    public List<FileMetaData> getMetadata(@RequestHeader(required = false) String user_id) {
+
+        if(ObjectUtils.isEmpty(user_id))
+            HttpResponseThrowers.throwUnauthorized("Unauthorized");
+
+        int userId = Integer.parseInt(user_id);
+
+        return this.fileMetaDataService.getAll(userId);
     }
 
     @GetMapping("metadata")

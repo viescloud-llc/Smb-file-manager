@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
-import org.springframework.data.repository.query.Param;
 
 import com.vincent.inc.smbfilemanager.model.FileMetaData;
 
@@ -22,9 +21,6 @@ public interface FileMetaDataDao extends JpaRepository<FileMetaData, Integer> {
 	public FileMetaData findByPublicity(boolean publicity);
 	public List<FileMetaData> findAllByPublicity(boolean publicity);
 
-	@Query(value = "select * from  as  where .originalFilename = :originalFilename and .contentType = :contentType and .path = :path and .publicity = :publicity", nativeQuery = true)
-	public List<FileMetaData> getAllByMatchAll(@Param("originalFilename") String originalFilename, @Param("contentType") String contentType, @Param("path") String path, @Param("publicity") boolean publicity);
-
-	@Query(value = "select * from  as  where .originalFilename = :originalFilename or .contentType = :contentType or .path = :path or .publicity = :publicity", nativeQuery = true)
-	public List<FileMetaData> getAllByMatchAny(@Param("originalFilename") String originalFilename, @Param("contentType") String contentType, @Param("path") String path, @Param("publicity") boolean publicity);
+	@Query(value = "select * from file_meta_data f where f.path like ?1", nativeQuery = true)
+	public List<FileMetaData> findAllByUserId(String id);
 }

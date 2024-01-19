@@ -32,7 +32,6 @@ public class FileMetaData implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     
-    @Column(unique = true)
     private String originalFilename;
     
     @Column

@@ -49,6 +49,10 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         throw new UnsupportedOperationException("method getAll() should not be use");
     }
 
+    public List<FileMetaData> getAll(int userId) {
+        return this.repositoryDao.findAllByUserId("/" + userId + "/%");
+    }
+
     public FileMetaData getFileMetaDataById(int id) {
         var object = this.databaseUtils.getAndExpire(id);
         if (ObjectUtils.isEmpty(object)) {
