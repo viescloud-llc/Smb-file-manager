@@ -79,7 +79,7 @@ public class SmbFileManagerController {
             HttpResponseThrowers.throwUnauthorized("Unauthorized");
         int userId = Integer.parseInt(user_id);
         var metadata = FileMetaData.fromMultipartFile(file, userId, file.getBytes());
-        return this.fileMetaDataService.create(metadata);
+        return this.fileMetaDataService.post(metadata);
     }
 
     @PatchMapping("metadata")

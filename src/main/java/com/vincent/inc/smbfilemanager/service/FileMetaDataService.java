@@ -19,7 +19,7 @@ import com.vincent.inc.smbfilemanager.dao.FileMetaDataDao;
 import com.vincent.inc.smbfilemanager.model.FileMetaData;
 import com.vincent.inc.viesspringutils.exception.HttpResponseThrowers;
 import com.vincent.inc.viesspringutils.service.ViesService;
-import com.vincent.inc.viesspringutils.util.DatabaseUtils;
+import com.vincent.inc.viesspringutils.util.DatabaseCall;
 import com.vincent.inc.viesspringutils.util.ReflectionUtils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +32,9 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
     private final SmbSession smbSession;
 
-    public FileMetaDataService(DatabaseUtils<FileMetaData, Integer> databaseUtils, FileMetaDataDao repositoryDao,
+    public FileMetaDataService(DatabaseCall<FileMetaData, Integer> databaseCall, FileMetaDataDao repositoryDao,
             SmbSessionFactory smbSessionFactory) {
-        super(databaseUtils, repositoryDao);
+        super(databaseCall, repositoryDao);
         this.smbSession = smbSessionFactory.getSession();
     }
 
@@ -54,7 +54,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     public FileMetaData getFileMetaDataById(int id) {
-        var object = this.databaseUtils.getAndExpire(id);
+        var object = this.databaseCall.getAndExpire(id);
         if (ObjectUtils.isEmpty(object)) {
             HttpResponseThrowers.throwBadRequest(String.format("%s Id not found", this.T_TYPE.getSimpleName()));
         }
@@ -100,7 +100,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
     public FileMetaData getFileByPath(String path) {
         var metadata = this.getFileMetaDataByPath(path);
-        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingGetOutput(metadata);
     }
 
     public FileMetaData getFileByPath(String path, int userId) {
@@ -109,7 +109,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
     private FileMetaData getFileByPathWithTry(String path, int userId, int numTry) {
         var metadata = this.getFileMetaDataByPathWithTry(path, userId, numTry);
-        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingGetOutput(metadata);
     }
 
     public FileMetaData getFileByName(String fileName, int userId) {
@@ -141,7 +141,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
     public FileMetaData getFileByCriteria(String id, String path, String fileName, int userId) {
         var metadata = this.getFileMetaDataByCriteria(id, path, fileName, userId);
-        return ObjectUtils.isEmpty(metadata) ? null : this.processingAnyGet(metadata);
+        return ObjectUtils.isEmpty(metadata) ? null : this.processingGetOutput(metadata);
     }
 
     public FileMetaData patchFileMetaData(FileMetaData originalMetadata, FileMetaData newMetaData) {
@@ -165,7 +165,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
         ReflectionUtils.patchValue(originalMetadata, newMetaData);
 
-        var saved = this.databaseUtils.saveAndExpire(originalMetadata);
+        var saved = this.databaseCall.saveAndExpire(originalMetadata);
 
         if (!ObjectUtils.isEmpty(newName)) {
             try {
@@ -228,7 +228,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
                 long size = data.length;
                 var metadata = FileMetaData.builder().contentType(contentType).originalFilename(fileName).path(path)
                         .size(size).userIds(List.of(userId)).build();
-                this.databaseUtils.saveAndExpire(metadata);
+                this.databaseCall.saveAndExpire(metadata);
             }
 
             return exist;
@@ -309,7 +309,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     @Override
-    protected FileMetaData processingAnyGet(FileMetaData object) {
+    protected FileMetaData processingGetOutput(FileMetaData object) {
 
         try {
             var stream = this.smbSession.readRaw(object.getPath());
@@ -324,7 +324,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     @Override
-    protected FileMetaData preProcessingAnyModification(FileMetaData object) {
+    protected FileMetaData processingPostInput(FileMetaData object) {
         if (ObjectUtils.isEmpty(object.getData()))
             HttpResponseThrowers.throwBadRequest("File is empty");
 
@@ -335,7 +335,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     @Override
-    protected FileMetaData processingAnyModification(FileMetaData object) {
+    protected FileMetaData processingPostOutput(FileMetaData object) {
         try {
             this.checkIfFileDirectoryExist(object.getPath());
             this.smbSession.write(object.getData(), object.getPath());
