@@ -1,12 +1,9 @@
 package com.vincent.inc.smbfilemanager.model;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.vincent.inc.viesspringutils.model.UserModel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,17 +13,19 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Entity
 @Table(name = "file_meta_data")
 @Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
-@Builder
-public class FileMetaData implements Serializable {
+@SuperBuilder
+public class FileMetaData extends UserModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,29 +40,27 @@ public class FileMetaData implements Serializable {
     @Column
     private Long size;
     
-    @Builder.Default
-    @Column
-    private List<Integer> userIds = new ArrayList<>();
-    
     @Column(unique = true)
     private String path;
 
-    @Builder.Default
     @Column
-    private boolean publicity = false;
+    private Boolean publicity;
 
     @JsonIgnore
     @Transient
     private byte[] data;
 
-    public static FileMetaData fromMultipartFile(MultipartFile file, int userId, byte[] data) {
-        return FileMetaData.builder()
+    public static FileMetaData fromMultipartFile(MultipartFile file, int userId, byte[] data, boolean publicity) {
+        var fileMetaData = FileMetaData.builder()
                            .originalFilename(file.getOriginalFilename())
                            .contentType(file.getContentType())
                            .size(file.getSize())
-                           .userIds(List.of(userId))
+                           .ownerUserId(userId)
+                           .publicity(publicity)
                            .path(String.format("/%s/%s", userId, file.getOriginalFilename()))
                            .data(data)
                            .build();
+
+        return fileMetaData;
     }
 }

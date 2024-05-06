@@ -73,12 +73,15 @@ public class SmbFileManagerController {
     @PostMapping("file")
     public FileMetaData uploadFile(
         @RequestHeader(required = false) String user_id, 
-        @RequestParam("file") MultipartFile file)
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(value = "publicity", required = false) Boolean publicity)
             throws IOException {
         if(ObjectUtils.isEmpty(user_id))
             HttpResponseThrowers.throwUnauthorized("Unauthorized");
+        if(publicity == null)
+            publicity = false;
         int userId = Integer.parseInt(user_id);
-        var metadata = FileMetaData.fromMultipartFile(file, userId, file.getBytes());
+        var metadata = FileMetaData.fromMultipartFile(file, userId, file.getBytes(), publicity);
         return this.fileMetaDataService.post(metadata);
     }
 
@@ -110,7 +113,7 @@ public class SmbFileManagerController {
         var metadata = this.fileMetaDataService.getFileMetaDataByCriteria(id, path, fileName, userId);
         if (ObjectUtils.isEmpty(metadata))
             HttpResponseThrowers.throwBadRequest("No file metadata found");
-        this.fileMetaDataService.checkIsFileBelongToUserOwner(metadata, userId);
+        this.fileMetaDataService.checkIsOwnByUser(metadata, userId);
         this.fileMetaDataService.delete(metadata.getId());
     }
 }

@@ -2,14 +2,14 @@ package com.vincent.inc.smbfilemanager.dao;
 
 import java.util.List;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.vincent.inc.smbfilemanager.model.FileMetaData;
+import com.vincent.inc.viesspringutils.dao.ViesJpaRepository;
 
 @Repository
-public interface FileMetaDataDao extends JpaRepository<FileMetaData, Integer> {
+public interface FileMetaDataDao extends ViesJpaRepository<FileMetaData, Integer> {
     public List<FileMetaData> findAllByOriginalFilename(String originalFilename);
 
 	public FileMetaData findByContentType(String contentType);

@@ -18,7 +18,7 @@ import org.springframework.util.ObjectUtils;
 import com.vincent.inc.smbfilemanager.dao.FileMetaDataDao;
 import com.vincent.inc.smbfilemanager.model.FileMetaData;
 import com.vincent.inc.viesspringutils.exception.HttpResponseThrowers;
-import com.vincent.inc.viesspringutils.service.ViesService;
+import com.vincent.inc.viesspringutils.service.ViesServiceWithUser;
 import com.vincent.inc.viesspringutils.util.DatabaseCall;
 import com.vincent.inc.viesspringutils.util.ReflectionUtils;
 
@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
-public class FileMetaDataService extends ViesService<FileMetaData, Integer, FileMetaDataDao> {
+public class FileMetaDataService extends ViesServiceWithUser<FileMetaData, Integer, FileMetaDataDao> {
 
     private static final String REMOVE_FILE_PATH = "/Trash";
 
@@ -81,7 +81,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         var metadata = this.getFileMetaDataByPath(path);
 
         if (!ObjectUtils.isEmpty(metadata)) {
-            this.checkIsFileBelongToUser(metadata, userId);
+            this.checkIsRelatedToUser(metadata, userId);
             return metadata;
         } else if (this.isFileExist(path)) {
             numTry++;
@@ -120,7 +120,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
 
         if (!ObjectUtils.isEmpty(id)) {
             var metadata = this.getFileMetaDataById(Integer.parseInt(id));
-            this.checkIsFileBelongToUser(metadata, userId);
+            this.checkIsRelatedToUser(metadata, userId);
             return metadata;
         }
 
@@ -145,9 +145,10 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
     }
 
     public FileMetaData patchFileMetaData(FileMetaData originalMetadata, FileMetaData newMetaData) {
+        isOwnByUser(originalMetadata);
         String newName = newMetaData.getOriginalFilename();
         String originalPath = originalMetadata.getPath();
-        int ownerId = this.getOwnerUserIdFromPath(originalMetadata.getPath());
+        int ownerId = originalMetadata.getOwnerUserId();
         String newPath = ObjectUtils.isEmpty(newName) ? null : String.format("/%s/%s", ownerId, newName);
         String newType = ObjectUtils.isEmpty(newName) ? null : this.getContentTypeFromPath(newPath);
 
@@ -155,27 +156,28 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
             HttpResponseThrowers.throwBadRequest("New type can't be difference from old type");
 
         if (!ObjectUtils.isEmpty(newName) && this.isFileExist(newPath))
-            HttpResponseThrowers.throwBadRequest("New file name already exist");
+            HttpResponseThrowers.throwBadRequest("New file name or path already exist");
 
-        newMetaData = FileMetaData.builder().path(newPath).userIds(newMetaData.getUserIds())
-                .publicity(newMetaData.isPublicity()).originalFilename(newName).build();
-
-        if (!newMetaData.getUserIds().stream().anyMatch(e -> e == ownerId))
-            newMetaData.getUserIds().add(ownerId);
-
+        newMetaData.setOriginalFilename(newName);
+        newMetaData.setPath(newPath);
         ReflectionUtils.patchValue(originalMetadata, newMetaData);
-
-        var saved = this.databaseCall.saveAndExpire(originalMetadata);
+        originalMetadata.setOwnerUserId(ownerId);
 
         if (!ObjectUtils.isEmpty(newName)) {
             try {
                 this.smbSession.rename(originalPath, newPath);
             } catch (IOException e1) {
                 log.error(e1.getMessage(), e1);
+                try {
+                    this.smbSession.remove(newPath);
+                } catch (IOException e2) {
+                    log.error(e2.getMessage(), e2);
+                }
+                HttpResponseThrowers.throwServerError("Server experience unexpected error when renaming file");
             }
         }
 
-        return saved;
+        return this.databaseCall.saveAndExpire(originalMetadata);
     }
 
     @Override
@@ -227,7 +229,7 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
                 var userId = this.getOwnerUserIdFromPath(path);
                 long size = data.length;
                 var metadata = FileMetaData.builder().contentType(contentType).originalFilename(fileName).path(path)
-                        .size(size).userIds(List.of(userId)).build();
+                        .size(size).ownerUserId(userId).build();
                 this.databaseCall.saveAndExpire(metadata);
             }
 
@@ -262,17 +264,9 @@ public class FileMetaDataService extends ViesService<FileMetaData, Integer, File
         return isFileExist(path);
     }
 
-    public void checkIsFileBelongToUser(FileMetaData fileMetaData, int userId) {
-        if (!fileMetaData.isPublicity() && !fileMetaData.getUserIds().stream().anyMatch(e -> e == userId)) {
-            HttpResponseThrowers.throwForbidden("User not allow to access this file");
-        }
-    }
-
-    public void checkIsFileBelongToUserOwner(FileMetaData fileMetaData, int userId) {
-        var ownerId = this.getOwnerUserIdFromPath(fileMetaData.getPath());
-        if (!fileMetaData.isPublicity() && userId != ownerId) {
-            HttpResponseThrowers.throwForbidden("User not allow to modify this file");
-        }
+    @Override
+    public boolean isRelatedToUser(FileMetaData fileMetaData, int userId) {
+        return fileMetaData.getPublicity() || super.isRelatedToUser(fileMetaData, userId);
     }
 
     public void checkIfFileDirectoryExist(String path) {
