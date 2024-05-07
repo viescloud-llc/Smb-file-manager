@@ -228,8 +228,7 @@ public class FileMetaDataService extends ViesServiceWithUser<FileMetaData, Integ
                 var fileName = this.getFileNameFromPath(path);
                 var userId = this.getOwnerUserIdFromPath(path);
                 long size = data.length;
-                var metadata = FileMetaData.builder().contentType(contentType).originalFilename(fileName).path(path)
-                        .size(size).ownerUserId(userId).build();
+                var metadata = FileMetaData.builder().publicity(false).contentType(contentType).originalFilename(fileName).path(path).size(size).ownerUserId(userId).build();
                 this.databaseCall.saveAndExpire(metadata);
             }
 

@@ -43,7 +43,7 @@ public class FileMetaData extends UserModel {
     @Column(unique = true)
     private String path;
 
-    @Column
+    @Column(columnDefinition = "BIT(1) default false")
     private Boolean publicity;
 
     @JsonIgnore
