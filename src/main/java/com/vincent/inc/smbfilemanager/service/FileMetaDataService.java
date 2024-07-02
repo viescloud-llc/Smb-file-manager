@@ -265,7 +265,7 @@ public class FileMetaDataService extends ViesServiceWithUser<FileMetaData, Integ
 
     @Override
     public boolean isRelatedToUser(FileMetaData fileMetaData, int userId) {
-        return fileMetaData.getPublicity() || super.isRelatedToUser(fileMetaData, userId);
+        return (fileMetaData.getPublicity() != null && fileMetaData.getPublicity() == true) || super.isRelatedToUser(fileMetaData, userId);
     }
 
     public void checkIfFileDirectoryExist(String path) {
